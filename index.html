@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Signal — reads your numbers, tells you what matters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --paper:#F1F4F7; --card:#FFFFFF; --ink:#14191E; --slate:#5E6872; --faint:#8A939D;
+    --line:#E3E8ED; --line-2:#EDF1F5;
+    --signal:#4338CA; --signal-soft:#EEF0FC;
+    --up:#0F8A5A; --up-soft:#E7F4EE; --down:#C0453B; --down-soft:#FBECEA;
+    --watch:#A96A00; --watch-soft:#FBF1E2;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif; --mono:'Space Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{padding:0}
+  .wrap{max-width:940px;margin:0 auto;padding:0 clamp(18px,4vw,32px)}
+  a{color:inherit}
+  ::selection{background:var(--signal);color:#fff}
+
+  /* ---------- header ---------- */
+  header{border-bottom:1px solid var(--line);background:rgba(241,244,247,.86);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+  .head-in{display:flex;align-items:center;gap:14px;height:62px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .spark{width:34px;height:22px;flex-shrink:0}
+  .spark path{fill:none;stroke:var(--signal);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .spark .noise{stroke:var(--faint);opacity:.5;stroke-width:1.4}
+  .wordmark{font-family:var(--disp);font-weight:700;font-size:20px;letter-spacing:-.02em}
+  .tagline{font-family:var(--mono);font-size:11px;color:var(--slate);letter-spacing:.02em;margin-left:2px}
+  .head-sp{flex:1}
+  .head-note{font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+  /* ---------- source panel ---------- */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-top:clamp(22px,4vw,34px);overflow:hidden}
+  .panel-top{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+  .src-label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .src-name{font-family:var(--disp);font-weight:600;font-size:15px}
+  .src-meta{font-family:var(--mono);font-size:12px;color:var(--slate)}
+  .panel-sp{flex:1}
+  .btn{font-family:var(--disp);font-weight:600;font-size:14px;border-radius:9px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);transition:transform .14s ease,border-color .14s ease,background .14s ease;white-space:nowrap}
+  .btn:hover{transform:translateY(-1px);border-color:var(--slate)}
+  .btn-primary{background:var(--signal);border-color:var(--signal);color:#fff}
+  .btn-primary:hover{filter:brightness(1.07);border-color:var(--signal)}
+  .btn:disabled{opacity:.55;cursor:default;transform:none}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap}
+
+  /* data preview */
+  .preview{max-height:210px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{position:sticky;top:0;background:var(--card);text-align:left;font-family:var(--mono);font-weight:400;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:10px 14px;border-bottom:1px solid var(--line-2)}
+  tbody td{padding:9px 14px;border-bottom:1px solid var(--line-2);color:var(--ink)}
+  tbody td.num{font-family:var(--mono);font-size:12.5px;color:var(--slate);text-align:right}
+  tbody tr:last-child td{border-bottom:none}
+  .more-row td{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;padding:8px}
+
+  /* ---------- briefing ---------- */
+  .briefing{margin:clamp(24px,4vw,40px) 0 60px}
+  .empty{padding:44px 20px;text-align:center;color:var(--slate)}
+  .empty h2{font-family:var(--disp);font-weight:600;font-size:19px;color:var(--ink);margin:0 0 6px}
+  .empty p{margin:0;font-size:14.5px;max-width:440px;margin:0 auto}
+
+  .loading{display:flex;flex-direction:column;align-items:center;gap:16px;padding:56px 20px}
+  .loading .spark{width:90px;height:44px}
+  .loading .lbl{font-family:var(--mono);font-size:12.5px;color:var(--slate);letter-spacing:.03em}
+
+  .memo{opacity:0;transform:translateY(10px)}
+  .memo.in{opacity:1;transform:none;transition:opacity .5s ease,transform .5s ease}
+  .memo-hd{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);margin-bottom:12px}
+  .headline{font-family:var(--disp);font-weight:600;font-size:clamp(22px,3.4vw,30px);line-height:1.22;letter-spacing:-.015em;margin:0 0 14px}
+  .summary{font-size:16px;color:var(--slate);max-width:640px;margin:0 0 30px}
+
+  .sec{margin-bottom:28px}
+  .sec-t{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .sec-t h3{font-family:var(--disp);font-weight:600;font-size:15px;margin:0;letter-spacing:-.01em}
+  .sec-t .c{font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+  .move{display:flex;align-items:flex-start;gap:13px;padding:13px 16px;background:var(--card);border:1px solid var(--line);border-radius:11px;margin-bottom:9px}
+  .move .dir{font-family:var(--mono);font-weight:700;font-size:13px;width:20px;flex-shrink:0;text-align:center;line-height:1.5}
+  .move.up{border-left:3px solid var(--up)} .move.up .dir{color:var(--up)}
+  .move.down{border-left:3px solid var(--down)} .move.down .dir{color:var(--down)}
+  .move .body{flex:1;min-width:0}
+  .move .nm{font-weight:600;font-size:14.5px}
+  .move .dt{font-size:13.5px;color:var(--slate);margin-top:1px}
+  .move .mx{font-family:var(--mono);font-size:12.5px;white-space:nowrap;padding-top:1px}
+  .move.up .mx{color:var(--up)} .move.down .mx{color:var(--down)}
+
+  .cols{display:grid;gap:14px;grid-template-columns:1fr}
+  @media(min-width:680px){.cols{grid-template-columns:1fr 1fr}}
+  .col-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 18px 8px}
+  .col-card .ct{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+  .col-card.good .ct{color:var(--up)} .col-card.watch .ct{color:var(--watch)}
+  .item{display:flex;gap:10px;margin-bottom:14px}
+  .item .pip{width:7px;height:7px;border-radius:50%;margin-top:6px;flex-shrink:0}
+  .good .pip{background:var(--up)} .watch .pip{background:var(--watch)}
+  .item .nm{font-weight:600;font-size:14px}
+  .item .nt{font-size:13.5px;color:var(--slate)}
+
+  .actions{background:var(--signal-soft);border:1px solid #DADEF9;border-radius:12px;padding:20px 22px}
+  .actions .ct{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--signal);margin-bottom:14px}
+  .act{display:flex;gap:13px;margin-bottom:13px}
+  .act:last-child{margin-bottom:0}
+  .act .n{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--signal);width:20px;flex-shrink:0}
+  .act .tx{font-size:14.5px;line-height:1.5}
+
+  .err{background:var(--down-soft);border:1px solid #F1CFCB;color:#8F332B;border-radius:11px;padding:14px 16px;font-size:14px}
+  .foot{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;padding:30px 0 40px}
+
+  input[type=file]{display:none}
+  @media (prefers-reduced-motion: reduce){ .memo{transition:none!important} .spark path{animation:none!important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap head-in">
+    <div class="brand">
+      <svg class="spark" viewBox="0 0 68 44" aria-hidden="true">
+        <path class="noise" d="M2 26 L8 22 L12 30 L17 18 L22 28 L27 20 L32 33 L37 15"/>
+        <path class="signal-line" d="M2 34 L14 30 L24 32 L34 22 L44 25 L54 12 L66 8"/>
+      </svg>
+      <span class="wordmark">Signal</span>
+      <span class="tagline">reads your numbers</span>
+    </div>
+    <span class="head-sp"></span>
+    <span class="head-note" id="headNote">demo · sample data loaded</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="panel">
+    <div class="panel-top">
+      <div>
+        <div class="src-label">Data source</div>
+        <div class="src-name" id="srcName">Monthly product sales</div>
+      </div>
+      <span class="src-meta" id="srcMeta">— rows</span>
+      <span class="panel-sp"></span>
+      <div class="btn-row">
+        <button class="btn" id="uploadBtn">Upload CSV</button>
+        <button class="btn btn-primary" id="analyzeBtn">Analyze →</button>
+        <input type="file" id="fileInput" accept=".csv,text/csv" />
+      </div>
+    </div>
+    <div class="preview" id="preview"></div>
+  </div>
+
+  <div class="briefing" id="briefing">
+    <div class="empty">
+      <h2>Your numbers, read for you</h2>
+      <p>Signal looks across your data and tells you what's moving, what to watch, and what to do — in plain language. Hit Analyze to see it on the sample data, or upload your own CSV.</p>
+    </div>
+  </div>
+
+  <div class="foot">Signal · AI reads your business data and tells you what matters · grounded in your real numbers</div>
+</div>
+
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---------- sample dataset (deliberate story baked in) ----------
+  var SAMPLE = {
+    label: "monthly product sales",
+    rows: [
+      {product:"Wireless Earbuds", category:"Tech", units_this:96, units_last:42, revenue:2880, margin_pct:34},
+      {product:"Desk Lamps", category:"Home Office", units_this:47, units_last:8, revenue:1410, margin_pct:38},
+      {product:"Laptop Stands", category:"Home Office", units_this:28, units_last:15, revenue:1120, margin_pct:44},
+      {product:"Gel Pens (12pk)", category:"Stationery", units_this:68, units_last:45, revenue:340, margin_pct:53},
+      {product:"USB-C Cables", category:"Tech", units_this:75, units_last:70, revenue:975, margin_pct:41},
+      {product:"HDMI Cables", category:"Tech", units_this:52, units_last:50, revenue:624, margin_pct:39},
+      {product:"Notebooks", category:"Stationery", units_this:58, units_last:60, revenue:464, margin_pct:45},
+      {product:"Sticky Notes", category:"Stationery", units_this:43, units_last:40, revenue:215, margin_pct:55},
+      {product:"Phone Cases", category:"Tech", units_this:92, units_last:88, revenue:1840, margin_pct:6},
+      {product:"A4 Printer Paper", category:"Stationery", units_this:74, units_last:130, revenue:518, margin_pct:22},
+      {product:"Ballpoint Pens (60pk)", category:"Stationery", units_this:95, units_last:120, revenue:285, margin_pct:52},
+      {product:"Bluetooth Speakers", category:"Tech", units_this:18, units_last:30, revenue:1080, margin_pct:30},
+      {product:"Power Banks", category:"Tech", units_this:14, units_last:25, revenue:700, margin_pct:33},
+      {product:"Whiteboard Markers", category:"Stationery", units_this:34, units_last:35, revenue:238, margin_pct:50}
+    ]
+  };
+
+  var current = SAMPLE;
+
+  // ---------- data preview ----------
+  function renderPreview(data){
+    var rows = data.rows || [];
+    $("srcName").textContent = titleize(data.label || "your data");
+    $("srcMeta").textContent = rows.length + " rows";
+    if(!rows.length){ $("preview").innerHTML = ""; return; }
+    var cols = Object.keys(rows[0]);
+    var head = "<thead><tr>" + cols.map(function(c){ return "<th>" + esc(prettyCol(c)) + "</th>"; }).join("") + "</tr></thead>";
+    var show = rows.slice(0, 6);
+    var bodyRows = show.map(function(r){
+      return "<tr>" + cols.map(function(c){
+        var v = r[c];
+        var isNum = typeof v === "number";
+        return "<td" + (isNum ? " class='num'" : "") + ">" + esc(String(v)) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    var more = rows.length > show.length
+      ? "<tr class='more-row'><td colspan='" + cols.length + "'>+ " + (rows.length - show.length) + " more rows</td></tr>"
+      : "";
+    $("preview").innerHTML = "<table>" + head + "<tbody>" + bodyRows + more + "</tbody></table>";
+  }
+
+  // ---------- analyze ----------
+  var analyzing = false;
+  function analyze(){
+    if(analyzing) return;
+    analyzing = true;
+    $("analyzeBtn").disabled = true;
+    $("uploadBtn").disabled = true;
+    $("briefing").innerHTML =
+      '<div class="loading">' +
+      '<svg class="spark" viewBox="0 0 68 44" aria-hidden="true"><path class="noise" d="M2 26 L8 22 L12 30 L17 18 L22 28 L27 20 L32 33 L37 15 L44 27 L52 17 L60 29 L66 20"/>' +
+      '<path class="signal-line" d="M2 34 L14 30 L24 32 L34 22 L44 25 L54 12 L66 8"><animate attributeName="stroke-dashoffset" from="120" to="0" dur="1.1s" repeatCount="indefinite"/></path></svg>' +
+      '<div class="lbl" id="loadLbl">Reading your numbers…</div></div>';
+    cycleLoadLabels();
+
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ rows: current.rows, label: current.label })
+    })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if(!res.ok || !res.j || !res.j.insights){
+        throw new Error((res.j && res.j.error) || "Analysis failed.");
+      }
+      renderBriefing(res.j.insights);
+    })
+    .catch(function(err){
+      $("briefing").innerHTML = '<div class="err">Couldn\'t analyze right now — ' + esc(String(err.message || err)) +
+        ' If you just deployed, check that ANTHROPIC_API_KEY is set on the server.</div>';
+    })
+    .finally(function(){
+      analyzing = false;
+      $("analyzeBtn").disabled = false;
+      $("uploadBtn").disabled = false;
+    });
+  }
+
+  var loadTimer;
+  function cycleLoadLabels(){
+    var msgs = ["Reading your numbers…","Comparing this period to last…","Finding what moved…","Writing your briefing…"];
+    var i = 0;
+    clearInterval(loadTimer);
+    loadTimer = setInterval(function(){
+      i++; var el = $("loadLbl");
+      if(!el){ clearInterval(loadTimer); return; }
+      el.textContent = msgs[i % msgs.length];
+    }, 1400);
+  }
+
+  // ---------- render the briefing ----------
+  function renderBriefing(ins){
+    clearInterval(loadTimer);
+    var html = '<div class="memo" id="memo">';
+    html += '<div class="memo-hd">Signal briefing · ' + esc(titleize(current.label)) + '</div>';
+    if(ins.headline) html += '<h1 class="headline">' + esc(ins.headline) + '</h1>';
+    if(ins.summary) html += '<p class="summary">' + esc(ins.summary) + '</p>';
+
+    var mv = ins.movements || [];
+    if(mv.length){
+      html += '<div class="sec"><div class="sec-t"><h3>What\'s moving</h3><span class="c">' + mv.length + '</span></div>';
+      mv.forEach(function(m){
+        var up = (m.direction || "").toLowerCase() === "up";
+        html += '<div class="move ' + (up ? "up" : "down") + '">' +
+          '<span class="dir">' + (up ? "▲" : "▼") + '</span>' +
+          '<div class="body"><div class="nm">' + esc(m.name || "") + '</div>' +
+          (m.detail ? '<div class="dt">' + esc(m.detail) + '</div>' : '') + '</div>' +
+          (m.metric ? '<span class="mx">' + esc(m.metric) + '</span>' : '') + '</div>';
+      });
+      html += '</div>';
+    }
+
+    var st = ins.standouts || [], cn = ins.concerns || [];
+    if(st.length || cn.length){
+      html += '<div class="sec"><div class="cols">';
+      if(st.length){
+        html += '<div class="col-card good"><div class="ct">Standouts</div>';
+        st.forEach(function(s){ html += itemHtml(s); });
+        html += '</div>';
+      }
+      if(cn.length){
+        html += '<div class="col-card watch"><div class="ct">Watch</div>';
+        cn.forEach(function(c){ html += itemHtml(c); });
+        html += '</div>';
+      }
+      html += '</div></div>';
+    }
+
+    var ac = ins.actions || [];
+    if(ac.length){
+      html += '<div class="actions"><div class="ct">Do this next</div>';
+      ac.forEach(function(a, i){
+        html += '<div class="act"><span class="n">' + (i+1) + '</span><span class="tx">' + esc(String(a)) + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    $("briefing").innerHTML = html;
+    requestAnimationFrame(function(){ var m = $("memo"); if(m) m.classList.add("in"); });
+  }
+
+  function itemHtml(o){
+    return '<div class="item"><span class="pip"></span><div><div class="nm">' + esc(o.name || "") + '</div>' +
+      (o.note ? '<div class="nt">' + esc(o.note) + '</div>' : '') + '</div></div>';
+  }
+
+  // ---------- CSV upload ----------
+  $("uploadBtn").onclick = function(){ $("fileInput").click(); };
+  $("fileInput").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    Papa.parse(file, {
+      header: true, dynamicTyping: true, skipEmptyLines: true,
+      complete: function(res){
+        var rows = (res.data || []).filter(function(r){ return r && Object.keys(r).length; });
+        if(!rows.length){ alert("That file didn't have any rows I could read."); return; }
+        current = { label: file.name.replace(/\.csv$/i, ""), rows: rows };
+        $("headNote").textContent = "your data · " + rows.length + " rows";
+        renderPreview(current);
+        $("briefing").innerHTML = '<div class="empty"><h2>Ready to analyze</h2><p>Loaded ' + rows.length +
+          ' rows from ' + esc(file.name) + '. Hit Analyze to get your briefing.</p></div>';
+      }
+    });
+  });
+
+  $("analyzeBtn").onclick = analyze;
+
+  // ---------- helpers ----------
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function prettyCol(c){ return String(c).replace(/_/g," ").replace(/\bpct\b/i,"%"); }
+  function titleize(s){ return String(s).replace(/[_-]/g," ").replace(/\b\w/g, function(m){ return m.toUpperCase(); }); }
+
+  // init
+  renderPreview(SAMPLE);
+</script>
+</body>
+</html>
