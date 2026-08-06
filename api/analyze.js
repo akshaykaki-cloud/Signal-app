@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 1600,
+        max_tokens: 2200,
         system: buildPrompt(label),
         messages: [
           { role: "user", content: "DATA (JSON rows):\n" + JSON.stringify(trimmed) },
@@ -55,13 +55,25 @@ export default async function handler(req, res) {
       .join("\n")
       .trim();
 
-    // The model is told to return ONLY JSON. Strip any stray fencing, then parse.
-    const clean = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-    let insights;
-    try {
-      insights = JSON.parse(clean);
-    } catch (e) {
-      return res.status(502).json({ error: "Could not parse the analysis.", raw: text.slice(0, 400) });
+    // The model is told to return ONLY JSON, but be robust: strip fences, and if
+    // there's any stray text around it, extract the outermost {...} block.
+    let insights = null;
+    const attempts = [];
+    let clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    attempts.push(clean);
+    // pull the first { ... last } in case the model added a sentence before/after
+    const first = clean.indexOf("{");
+    const last = clean.lastIndexOf("}");
+    if (first !== -1 && last !== -1 && last > first) {
+      attempts.push(clean.slice(first, last + 1));
+      // last resort: strip trailing commas that break JSON.parse
+      attempts.push(clean.slice(first, last + 1).replace(/,(\s*[}\]])/g, "$1"));
+    }
+    for (const candidate of attempts) {
+      try { insights = JSON.parse(candidate); break; } catch (e) { /* try next */ }
+    }
+    if (!insights) {
+      return res.status(502).json({ error: "Could not parse the analysis.", raw: text.slice(0, 500) });
     }
 
     return res.status(200).json({ insights });
