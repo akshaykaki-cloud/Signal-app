@@ -128,7 +128,7 @@
       <span class="tagline">reads your numbers</span>
     </div>
     <span class="head-sp"></span>
-    <span class="head-note" id="headNote">demo · sample data loaded</span>
+    <span class="head-note" id="headNote">upload a CSV to begin</span>
   </div>
 </header>
 
@@ -138,13 +138,13 @@
     <div class="panel-top">
       <div>
         <div class="src-label">Data source</div>
-        <div class="src-name" id="srcName">Monthly product sales</div>
+        <div class="src-name" id="srcName">No data loaded</div>
       </div>
-      <span class="src-meta" id="srcMeta">— rows</span>
+      <span class="src-meta" id="srcMeta">upload a CSV to start</span>
       <span class="panel-sp"></span>
       <div class="btn-row">
         <button class="btn" id="uploadBtn">Upload CSV</button>
-        <button class="btn btn-primary" id="analyzeBtn">Analyze →</button>
+        <button class="btn btn-primary" id="analyzeBtn" disabled>Analyze →</button>
         <input type="file" id="fileInput" accept=".csv,text/csv" />
       </div>
     </div>
@@ -154,7 +154,7 @@
   <div class="briefing" id="briefing">
     <div class="empty">
       <h2>Your numbers, read for you</h2>
-      <p>Signal looks across your data and tells you what's moving, what to watch, and what to do — in plain language. Hit Analyze to see it on the sample data, or upload your own CSV.</p>
+      <p>Signal looks across your data and tells you what's moving, what to watch, and what to do — in plain language. Upload a CSV, then hit Analyze.</p>
     </div>
   </div>
 
@@ -164,28 +164,8 @@
 <script>
   var $ = function(id){ return document.getElementById(id); };
 
-  // ---------- sample dataset (deliberate story baked in) ----------
-  var SAMPLE = {
-    label: "monthly product sales",
-    rows: [
-      {product:"Wireless Earbuds", category:"Tech", units_this:96, units_last:42, revenue:2880, margin_pct:34},
-      {product:"Desk Lamps", category:"Home Office", units_this:47, units_last:8, revenue:1410, margin_pct:38},
-      {product:"Laptop Stands", category:"Home Office", units_this:28, units_last:15, revenue:1120, margin_pct:44},
-      {product:"Gel Pens (12pk)", category:"Stationery", units_this:68, units_last:45, revenue:340, margin_pct:53},
-      {product:"USB-C Cables", category:"Tech", units_this:75, units_last:70, revenue:975, margin_pct:41},
-      {product:"HDMI Cables", category:"Tech", units_this:52, units_last:50, revenue:624, margin_pct:39},
-      {product:"Notebooks", category:"Stationery", units_this:58, units_last:60, revenue:464, margin_pct:45},
-      {product:"Sticky Notes", category:"Stationery", units_this:43, units_last:40, revenue:215, margin_pct:55},
-      {product:"Phone Cases", category:"Tech", units_this:92, units_last:88, revenue:1840, margin_pct:6},
-      {product:"A4 Printer Paper", category:"Stationery", units_this:74, units_last:130, revenue:518, margin_pct:22},
-      {product:"Ballpoint Pens (60pk)", category:"Stationery", units_this:95, units_last:120, revenue:285, margin_pct:52},
-      {product:"Bluetooth Speakers", category:"Tech", units_this:18, units_last:30, revenue:1080, margin_pct:30},
-      {product:"Power Banks", category:"Tech", units_this:14, units_last:25, revenue:700, margin_pct:33},
-      {product:"Whiteboard Markers", category:"Stationery", units_this:34, units_last:35, revenue:238, margin_pct:50}
-    ]
-  };
-
-  var current = SAMPLE;
+  // No data until the user uploads a CSV.
+  var current = null;
 
   // ---------- data preview ----------
   function renderPreview(data){
@@ -212,7 +192,7 @@
   // ---------- analyze ----------
   var analyzing = false;
   function analyze(){
-    if(analyzing) return;
+    if(analyzing || !current || !current.rows || !current.rows.length) return;
     analyzing = true;
     $("analyzeBtn").disabled = true;
     $("uploadBtn").disabled = true;
@@ -326,7 +306,8 @@
         var rows = (res.data || []).filter(function(r){ return r && Object.keys(r).length; });
         if(!rows.length){ alert("That file didn't have any rows I could read."); return; }
         current = { label: file.name.replace(/\.csv$/i, ""), rows: rows };
-        $("headNote").textContent = "your data · " + rows.length + " rows";
+        $("headNote").textContent = rows.length + " rows loaded";
+        $("analyzeBtn").disabled = false;
         renderPreview(current);
         $("briefing").innerHTML = '<div class="empty"><h2>Ready to analyze</h2><p>Loaded ' + rows.length +
           ' rows from ' + esc(file.name) + '. Hit Analyze to get your briefing.</p></div>';
@@ -341,8 +322,10 @@
   function prettyCol(c){ return String(c).replace(/_/g," ").replace(/\bpct\b/i,"%"); }
   function titleize(s){ return String(s).replace(/[_-]/g," ").replace(/\b\w/g, function(m){ return m.toUpperCase(); }); }
 
-  // init
-  renderPreview(SAMPLE);
+  // init — empty state, waiting for an upload
+  $("preview").innerHTML = '<div style="padding:34px 20px;text-align:center;color:var(--faint);font-size:13.5px">' +
+    'No data yet. Click <b style="color:var(--slate)">Upload CSV</b> to load a spreadsheet ' +
+    '(any columns — products, sales, months, revenue).</div>';
 </script>
 </body>
 </html>
