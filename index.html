@@ -111,11 +111,62 @@
   .err{background:var(--down-soft);border:1px solid #F1CFCB;color:#8F332B;border-radius:11px;padding:14px 16px;font-size:14px}
   .foot{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;padding:30px 0 40px}
 
+  /* ---------- auth gate ---------- */
+  .logout{font-family:var(--mono);font-size:11px;color:var(--slate);background:none;border:1px solid var(--line);border-radius:7px;padding:6px 11px;cursor:pointer;transition:border-color .15s ease,color .15s ease}
+  .logout:hover{border-color:var(--slate);color:var(--ink)}
+  #authGate{position:fixed;inset:0;z-index:100;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:22px}
+  #authGate.hidden{display:none}
+  .auth-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:clamp(26px,4vw,38px);box-shadow:0 8px 40px rgba(20,25,30,.06)}
+  .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .auth-brand .wordmark{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:-.02em}
+  .auth-sub{color:var(--slate);font-size:14.5px;margin:0 0 24px}
+  .auth-tabs{display:flex;gap:4px;background:var(--paper);border-radius:9px;padding:4px;margin-bottom:20px}
+  .auth-tabs button{flex:1;border:none;background:transparent;font-family:var(--disp);font-weight:600;font-size:13.5px;color:var(--slate);padding:9px;border-radius:7px;cursor:pointer;transition:background .15s ease,color .15s ease}
+  .auth-tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .auth-field{margin-bottom:14px}
+  .auth-field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin-bottom:6px}
+  .auth-field input{width:100%;box-sizing:border-box;background:var(--paper);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--body);font-size:15px;padding:11px 13px;outline:none;transition:border-color .15s ease}
+  .auth-field input:focus{border-color:var(--signal)}
+  .auth-submit{width:100%;background:var(--signal);color:#fff;border:none;border-radius:9px;font-family:var(--disp);font-weight:600;font-size:15px;padding:13px;cursor:pointer;transition:filter .15s ease;margin-top:4px}
+  .auth-submit:hover{filter:brightness(1.08)}
+  .auth-submit:disabled{opacity:.6;cursor:default}
+  .auth-msg{font-size:13px;margin-top:14px;text-align:center;min-height:18px}
+  .auth-msg.err{color:var(--down)}
+  .auth-msg.ok{color:var(--up)}
+
   input[type=file]{display:none}
   @media (prefers-reduced-motion: reduce){ .memo{transition:none!important} .spark path{animation:none!important} }
 </style>
 </head>
 <body>
+
+<!-- ===================== AUTH GATE ===================== -->
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <svg class="spark" width="34" height="22" viewBox="0 0 68 44" aria-hidden="true">
+        <path class="noise" d="M2 26 L8 22 L12 30 L17 18 L22 28 L27 20 L32 33 L37 15"/>
+        <path class="signal-line" d="M2 34 L14 30 L24 32 L34 22 L44 25 L54 12 L66 8"/>
+      </svg>
+      <span class="wordmark">Signal</span>
+    </div>
+    <p class="auth-sub">Sign in to read your business data.</p>
+    <div class="auth-tabs">
+      <button id="tabSignin" class="on">Sign in</button>
+      <button id="tabSignup">Create account</button>
+    </div>
+    <div class="auth-field">
+      <label for="authEmail">Email</label>
+      <input id="authEmail" type="email" autocomplete="email" placeholder="you@business.com" />
+    </div>
+    <div class="auth-field">
+      <label for="authPass">Password</label>
+      <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••" />
+    </div>
+    <button class="auth-submit" id="authSubmit">Sign in</button>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
 
 <header>
   <div class="wrap head-in">
@@ -129,6 +180,7 @@
     </div>
     <span class="head-sp"></span>
     <span class="head-note" id="headNote">upload a CSV to begin</span>
+    <button class="logout" id="logoutBtn" style="display:none;margin-left:14px">Log out</button>
   </div>
 </header>
 
@@ -160,6 +212,88 @@
 
   <div class="foot">Signal · AI reads your business data and tells you what matters · grounded in your real numbers</div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  /* ================= AUTH (Supabase) ================= */
+  var SUPABASE_URL = "https://umfqbkzfddaxxwyamjvx.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtZnFia3pmZGRheHh3eWFtanZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxNjk5NzgsImV4cCI6MjEwMTc0NTk3OH0.rLgt85ToIcHmJM9pCcS2_rqBhAgWbC-ckvKq0brXGeM";
+  var sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  var accessToken = null;
+
+  (function(){
+    var g = function(id){ return document.getElementById(id); };
+    var msg = g("authMsg");
+    if(!sb){
+      msg.className = "auth-msg err";
+      msg.textContent = "Couldn't load sign-in. Please refresh the page.";
+      return;
+    }
+    var mode = "signin"; // or "signup"
+
+    function setMode(m){
+      mode = m;
+      g("tabSignin").classList.toggle("on", m==="signin");
+      g("tabSignup").classList.toggle("on", m==="signup");
+      g("authSubmit").textContent = m==="signin" ? "Sign in" : "Create account";
+      g("authPass").setAttribute("autocomplete", m==="signin" ? "current-password" : "new-password");
+      msg.textContent = ""; msg.className = "auth-msg";
+    }
+    g("tabSignin").onclick = function(){ setMode("signin"); };
+    g("tabSignup").onclick = function(){ setMode("signup"); };
+
+    function showApp(session){
+      accessToken = session.access_token;
+      g("authGate").classList.add("hidden");
+      g("logoutBtn").style.display = "";
+    }
+    function showGate(){
+      accessToken = null;
+      g("authGate").classList.remove("hidden");
+      g("logoutBtn").style.display = "none";
+    }
+
+    async function submit(){
+      var email = g("authEmail").value.trim();
+      var pass = g("authPass").value;
+      if(!email || !pass){ msg.className="auth-msg err"; msg.textContent="Enter your email and password."; return; }
+      g("authSubmit").disabled = true;
+      msg.className = "auth-msg"; msg.textContent = "…";
+      try {
+        var res;
+        if(mode === "signup"){
+          res = await sb.auth.signUp({ email: email, password: pass });
+          if(res.error) throw res.error;
+          if(res.data.session){ showApp(res.data.session); }
+          else { msg.className="auth-msg ok"; msg.textContent="Account created — check your email to confirm, then sign in."; setMode("signin"); }
+        } else {
+          res = await sb.auth.signInWithPassword({ email: email, password: pass });
+          if(res.error) throw res.error;
+          showApp(res.data.session);
+        }
+      } catch(err){
+        msg.className = "auth-msg err";
+        msg.textContent = (err && err.message) ? err.message : "Something went wrong.";
+      } finally {
+        g("authSubmit").disabled = false;
+      }
+    }
+    g("authSubmit").onclick = submit;
+    g("authPass").addEventListener("keydown", function(e){ if(e.key==="Enter") submit(); });
+    g("authEmail").addEventListener("keydown", function(e){ if(e.key==="Enter") submit(); });
+
+    g("logoutBtn").onclick = async function(){ await sb.auth.signOut(); showGate(); };
+
+    // restore an existing session on load
+    sb.auth.getSession().then(function(res){
+      if(res.data && res.data.session){ showApp(res.data.session); }
+      else { showGate(); }
+    });
+    sb.auth.onAuthStateChange(function(_evt, session){
+      if(session){ accessToken = session.access_token; }
+    });
+  })();
+</script>
 
 <script>
   var $ = function(id){ return document.getElementById(id); };
@@ -205,7 +339,10 @@
 
     fetch("/api/analyze", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "authorization": "Bearer " + (window.accessToken || accessToken || "")
+      },
       body: JSON.stringify({ rows: current.rows, label: current.label })
     })
     .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
