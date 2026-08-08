@@ -3,11 +3,38 @@
 // Receives a small business dataset (rows of numbers) and returns a structured,
 // plain-language briefing: what's moving, what stands out, what to watch, what to do.
 //
+// Requires a logged-in Supabase user (Authorization: Bearer <token>).
 // Set ANTHROPIC_API_KEY in your Vercel project env vars (never commit it).
+
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://umfqbkzfddaxxwyamjvx.supabase.co";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtZnFia3pmZGRheHh3eWFtanZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxNjk5NzgsImV4cCI6MjEwMTc0NTk3OH0.rLgt85ToIcHmJM9pCcS2_rqBhAgWbC-ckvKq0brXGeM";
+
+// Verify the caller's Supabase access token. Returns the user, or null if invalid.
+async function getUser(req) {
+  const auth = req.headers["authorization"] || req.headers["Authorization"] || "";
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
+  try {
+    const r = await fetch(SUPABASE_URL + "/auth/v1/user", {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + token },
+    });
+    if (!r.ok) return null;
+    const user = await r.json();
+    return user && user.id ? user : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST." });
+  }
+
+  // must be signed in
+  const user = await getUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Please sign in to run an analysis." });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
